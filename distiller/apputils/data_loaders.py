@@ -287,7 +287,7 @@ def _get_sampler(data_source, effective_size, fixed_subset=False, sequential=Fal
 
 def get_data_loaders(datasets_fn, data_dir, batch_size, num_workers, validation_split=0.1, deterministic=False,
                      effective_train_size=1., effective_valid_size=1., effective_test_size=1., fixed_subset=False,
-                     sequential=False, test_only=False):
+                     sequential=False, test_only=False, collate_fn=None):
     train_dataset, test_dataset = datasets_fn(data_dir, load_train=not test_only, load_test=True)
 
     worker_init_fn = None
@@ -299,7 +299,7 @@ def get_data_loaders(datasets_fn, data_dir, batch_size, num_workers, validation_
     test_sampler = _get_sampler(test_indices, effective_test_size, fixed_subset, sequential)
     test_loader = torch.utils.data.DataLoader(test_dataset,
                                               batch_size=batch_size, sampler=test_sampler,
-                                              num_workers=num_workers, pin_memory=True)
+                                              num_workers=num_workers, pin_memory=True, collate_fn=collate_fn)
 
     input_shape = __image_size(test_dataset)
 
@@ -321,7 +321,7 @@ def get_data_loaders(datasets_fn, data_dir, batch_size, num_workers, validation_
     train_loader = torch.utils.data.DataLoader(train_dataset,
                                                batch_size=batch_size, sampler=train_sampler,
                                                num_workers=num_workers, pin_memory=True,
-                                               worker_init_fn=worker_init_fn)
+                                               worker_init_fn=worker_init_fn, collate_fn=collate_fn)
 
     valid_loader = None
     if valid_indices:
@@ -329,7 +329,7 @@ def get_data_loaders(datasets_fn, data_dir, batch_size, num_workers, validation_
         valid_loader = torch.utils.data.DataLoader(train_dataset,
                                                    batch_size=batch_size, sampler=valid_sampler,
                                                    num_workers=num_workers, pin_memory=True,
-                                                   worker_init_fn=worker_init_fn)
+                                                   worker_init_fn=worker_init_fn, collate_fn=collate_fn)
 
     # If validation split was 0 we use the test set as the validation set
     return train_loader, valid_loader or test_loader, test_loader, input_shape
