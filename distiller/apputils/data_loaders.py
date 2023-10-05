@@ -314,11 +314,15 @@ def get_data_loaders(datasets_fn, data_dir, batch_size, num_workers, validation_
 
     # TODO: Switch to torch.utils.data.datasets.random_split()
 
-    # We shuffle indices here in case the data is arranged by class, in which case we'd would get mutually
-    # exclusive datasets if we didn't shuffle
-    np.random.shuffle(indices)
-
-    valid_indices, train_indices = __split_list(indices, validation_split)
+    if hasattr(train_dataset, 'valid_indices'):
+        valid_indices = train_dataset.valid_indices
+        # train indices are the complement of valid indices
+        train_indices = list(set(indices) - set(valid_indices))
+    else:
+        # Shuffle indices here in case the data is arranged by class, in which case we'd would get mutually
+        # exclusive datasets if we didn't shuffle
+        np.random.shuffle(indices)
+        valid_indices, train_indices = __split_list(indices, validation_split)
 
     train_sampler = _get_sampler(train_indices, effective_train_size, fixed_subset, sequential)
     train_loader = torch.utils.data.DataLoader(train_dataset,
