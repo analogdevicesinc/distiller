@@ -13,7 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
+###################################################################################################
+#
+# Portions Copyright (C) 2023 Analog Devices, Inc. All Rights Reserved.
+#
+# Analog Devices, Inc. Default Copyright Notice:
+# https://www.analog.com/en/about-adi/legal-and-risk-oversight/intellectual-property/copyright-notice.html
+#
+###################################################################################################
 """ Helper code for checkpointing models, with support for saving the pruning schedule.
 
 Adding the schedule information in the model checkpoint is helpful in resuming
@@ -227,6 +234,11 @@ def load_checkpoint(model, chkpt_file, optimizer=None,
         if qmd.get('pytorch_convert', False):
             msglogger.info('Converting Distiller PTQ model to PyTorch quantization API')
             model = quantizer.convert_to_pytorch(qmd['dummy_input'], backend=qmd.get('pytorch_convert_backend', None))
+
+    for k, v in checkpoint['state_dict'].items():
+        if 'module' in k:
+            normalize_dataparallel_keys = True
+            break
 
     if normalize_dataparallel_keys:
         checkpoint['state_dict'] = {normalize_module_name(k): v for k, v in checkpoint['state_dict'].items()}

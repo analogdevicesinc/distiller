@@ -13,6 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+###################################################################################################
+#
+# Portions Copyright (C) 2023 Analog Devices, Inc. All Rights Reserved.
+#
+# Analog Devices, Inc. Default Copyright Notice:
+# https://www.analog.com/en/about-adi/legal-and-risk-oversight/intellectual-property/copyright-notice.html
+#
+###################################################################################################
 
 """CompressionScheduler configuration parsing.
 
@@ -49,7 +57,7 @@ msglogger = logging.getLogger()
 app_cfg_logger = logging.getLogger("app_cfg")
 
 
-def dict_config(model, optimizer, sched_dict, scheduler=None, resumed_epoch=None):
+def dict_config(model, optimizer, sched_dict, scheduler=None, resumed_epoch=None, loss_optimizer=None):
     app_cfg_logger.debug('Schedule contents:\n' + json.dumps(sched_dict, indent=2))
 
     if scheduler is None:
@@ -64,6 +72,7 @@ def dict_config(model, optimizer, sched_dict, scheduler=None, resumed_epoch=None
 
     try:
         lr_policies = []
+        loss_lr_policies = []
         for policy_def in sched_dict['policies']:
             policy = None
             if 'pruner' in policy_def:
@@ -98,6 +107,12 @@ def dict_config(model, optimizer, sched_dict, scheduler=None, resumed_epoch=None
                 lr_policies.append(policy_def)
                 continue
 
+            elif 'loss_lr_scheduler' in policy_def:
+                # LR schedulers take an optimizer in their constructor, so postpone handling until we're certain
+                # a quantization policy was initialized (if exists)
+                loss_lr_policies.append(policy_def)
+                continue
+
             elif 'extension' in policy_def:
                 instance_name, args = __policy_params(policy_def, 'extension')
                 assert instance_name in extensions, "Extension {} was not defined in the list of extensions".format(instance_name)
@@ -119,6 +134,16 @@ def dict_config(model, optimizer, sched_dict, scheduler=None, resumed_epoch=None
             lr_scheduler = lr_schedulers[instance_name]
             policy = distiller.LRPolicy(lr_scheduler)
             add_policy_to_scheduler(policy, policy_def, scheduler)
+        
+        if loss_optimizer is not None:
+            loss_lr_schedulers = __factory('loss_lr_schedulers', model, sched_dict, optimizer=loss_optimizer,
+                                           last_epoch=(resumed_epoch if resumed_epoch is not None else -1))
+            for policy_def in loss_lr_policies:
+                instance_name, args = __policy_params(policy_def, 'loss_lr_scheduler')
+                if  instance_name in loss_lr_schedulers:
+                    lr_scheduler = loss_lr_schedulers[instance_name]
+                    policy = distiller.LRPolicy(lr_scheduler)
+                    add_policy_to_scheduler(policy, policy_def, scheduler)
 
     except AssertionError:
         # propagate the assertion information
@@ -139,13 +164,13 @@ def add_policy_to_scheduler(policy, policy_def, scheduler):
                             frequency=policy_def['frequency'])
 
 
-def file_config(model, optimizer, filename, scheduler=None, resumed_epoch=None):
+def file_config(model, optimizer, filename, scheduler=None, resumed_epoch=None, loss_optimizer=None):
     """Read the schedule from file"""
     with open(filename, 'r') as stream:
         msglogger.info('Reading compression schedule from: %s', filename)
         try:
             sched_dict = distiller.utils.yaml_ordered_load(stream)
-            return dict_config(model, optimizer, sched_dict, scheduler, resumed_epoch)
+            return dict_config(model, optimizer, sched_dict, scheduler, resumed_epoch, loss_optimizer)
         except yaml.YAMLError as exc:
             print("\nFATAL parsing error while parsing the schedule configuration file %s" % filename)
             raise
