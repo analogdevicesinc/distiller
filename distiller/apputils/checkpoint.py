@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
 """ Helper code for checkpointing models, with support for saving the pruning schedule.
 
 Adding the schedule information in the model checkpoint is helpful in resuming
