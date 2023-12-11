@@ -229,23 +229,25 @@ def load_checkpoint(model, chkpt_file, optimizer=None,
             msglogger.info('Converting Distiller PTQ model to PyTorch quantization API')
             model = quantizer.convert_to_pytorch(qmd['dummy_input'], backend=qmd.get('pytorch_convert_backend', None))
 
-    for k, v in checkpoint['state_dict'].items():
-        if 'module' in k:
-            normalize_dataparallel_keys = True
-            break
-
     if normalize_dataparallel_keys:
         checkpoint['state_dict'] = {normalize_module_name(k): v for k, v in checkpoint['state_dict'].items()}
+
     anomalous_keys = model.load_state_dict(checkpoint['state_dict'], strict)
     if anomalous_keys:
         # This is pytorch 1.1+
-        missing_keys, unexpected_keys = anomalous_keys
-        if unexpected_keys:
-            msglogger.warning("Warning: the loaded checkpoint (%s) contains %d unexpected state keys" %
-                              (chkpt_file, len(unexpected_keys)))
-        if missing_keys:
-            raise ValueError("The loaded checkpoint (%s) is missing %d state keys" %
-                             (chkpt_file, len(missing_keys)))
+        # If anomalous_keys is not empty, try to load the model by removing the module prefixes
+        checkpoint['state_dict'] = {normalize_module_name(k): v for k, v in checkpoint['state_dict'].items()}
+        anomalous_keys = model.load_state_dict(checkpoint['state_dict'], strict)
+
+        if anomalous_keys:
+            # If anomalous_keys is still not empty, provide an informative message
+            missing_keys, unexpected_keys = anomalous_keys
+            if unexpected_keys:
+                msglogger.warning("Warning: the loaded checkpoint (%s) contains %d unexpected state keys" %
+                                 (chkpt_file, len(unexpected_keys)))
+            if missing_keys:
+                raise ValueError("The loaded checkpoint (%s) is missing %d state keys" %
+                                (chkpt_file, len(missing_keys)))
 
     if model_device is not None:
         model.to(model_device)
