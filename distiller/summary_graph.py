@@ -105,8 +105,15 @@ def dropout_workaround(graph):
     return pre_dropout_nodes_scope_names
 
 
+def _remove_onnx_prefix(name):
+    # Removes "onnx::" prefix from the name
+    if name.startswith("onnx::"):
+        return name[6:]
+    return name
+
+
 def _onnx_clean_name(n):
-    return n.debugName().lstrip('::onnx')
+    return _remove_onnx_prefix(n.debugName())
 
 
 class SummaryGraph(object):
@@ -305,7 +312,7 @@ class SummaryGraph(object):
         op = OrderedDict()
         op['name'] = onnx_node.scopeName()
         op['orig-name'] = onnx_node.scopeName()
-        op['type'] = onnx_node.kind().lstrip('::onnx')
+        op['type'] = _remove_onnx_prefix(onnx_node.kind())
         op['inputs'] = []
         op['outputs'] = []
         op['params'] = []
